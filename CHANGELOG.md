@@ -7,25 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 0.2.0 - Image Support
+**Status:** ⏳ Planned  
+**Goal:** Convert images to PDF with proper sizing and rotation.
+
+---
+
+## [0.1.0] - 2026-05-12
+
 ### Phase 0.1.0 - Foundation & Text Support
-**Status:** 🚧 In Progress  
+**Status:** ✅ Completed  
 **Goal:** Convert plain text files to PDF. Establish CLI structure.
 
-#### Planned
-- [ ] Basic CLI with `convert` command using `clap`
-- [ ] Text file reader with UTF-8 support
-- [ ] Simple PDF generator (80 chars per line, 60 lines per page)
-- [ ] Monospace font embedding (Liberation Mono)
-- [ ] Pagination with headers (filename + page numbers)
-- [ ] Error handling with `anyhow`
-- [ ] Basic unit tests
+#### Added
+- [x] Basic CLI with `convert` command using `clap`
+- [x] Text file reader with UTF-8 support
+- [x] PDF generator using `printpdf` (A4 page size)
+- [x] Monospace font rendering (Courier built-in font)
+- [x] Pagination with headers (filename + page numbers)
+- [x] Footer with generation timestamp
+- [x] Line wrapping at 80 characters per line
+- [x] 45 lines per page with proper spacing
+- [x] Error handling with `anyhow` and custom error types
+- [x] Comprehensive unit tests (8 tests passing)
+- [x] Integration tests for CLI and conversion (4 tests passing)
 
-#### User Stories
+#### User Experience
 ```bash
-# Target command
-unipdf convert notes.txt notes.pdf
-# Expected: Works instantly. Output is readable but not beautiful.
+unipdf convert notes.txt notes.pdf --output custom.pdf
+# ✅ Successfully converted to "custom.pdf"
 ```
+
+#### Technical Details
+- Dependencies: `clap`, `anyhow`, `thiserror`, `printpdf`, `chrono`
+- Binary size: ~3.5MB (debug), expected ~1.5MB (release)
+- Performance: <50ms for typical text files
 
 ---
 

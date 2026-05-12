@@ -1,6 +1,10 @@
 // UniPDF - Universal File to PDF Converter
 // Phase 0.1.0: Foundation & Text Support
 
+mod converters;
+mod error;
+mod pdf;
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -51,13 +55,26 @@ fn main() -> Result<()> {
     match cli.command {
         Commands::Convert { input, output } => {
             let output = output.unwrap_or_else(|| input.with_extension("pdf"));
+            
+            // Validate input file exists
+            if !input.exists() {
+                eprintln!("❌ Error: Input file does not exist: {:?}", input);
+                std::process::exit(1);
+            }
+
             println!("🔄 Converting {:?} to {:?}", input, output);
 
-            // TODO: Implement actual conversion
-            println!("❌ Conversion not yet implemented");
-            println!("💡 Phase 0.1.0 is under development");
-
-            Ok(())
+            // Perform conversion
+            match converters::text::convert(&input, &output) {
+                Ok(_) => {
+                    println!("✅ Successfully converted to {:?}", output);
+                    Ok(())
+                }
+                Err(e) => {
+                    eprintln!("❌ Conversion failed: {}", e);
+                    std::process::exit(1);
+                }
+            }
         }
         Commands::Batch { pattern, output } => {
             println!("🔄 Batch converting {} to {:?}", pattern, output);

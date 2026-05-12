@@ -24,7 +24,6 @@ fn test_cli_version() {
 }
 
 #[test]
-#[ignore] // Ignored until conversion is implemented
 fn test_convert_text_file() {
     let mut cmd = Command::cargo_bin("unipdf").unwrap();
     let input = "test_files/sample.txt";
@@ -42,18 +41,22 @@ fn test_convert_text_file() {
 
     // Verify output file was created
     assert!(Path::new(output).exists());
+    
+    // Verify file has content
+    let metadata = std::fs::metadata(output).unwrap();
+    assert!(metadata.len() > 0, "PDF file is empty");
 
     // Cleanup
     std::fs::remove_file(output).ok();
 }
 
 #[test]
-#[ignore] // Ignored until file validation is implemented
 fn test_convert_nonexistent_file() {
     let mut cmd = Command::cargo_bin("unipdf").unwrap();
     
     cmd.arg("convert")
         .arg("nonexistent.txt")
         .assert()
-        .failure();
+        .failure()
+        .code(1);
 }
