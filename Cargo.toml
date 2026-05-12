@@ -1,0 +1,78 @@
+[package]
+name = "unipdf"
+version = "0.1.0-dev"
+edition = "2021"
+rust-version = "1.75"
+authors = ["Your Name <your.email@example.com>"]
+license = "MIT OR Apache-2.0"
+description = "A zero-dependency CLI tool that converts common file types to PDF"
+homepage = "https://github.com/yourusername/unipdf"
+repository = "https://github.com/yourusername/unipdf"
+readme = "README.md"
+keywords = ["pdf", "converter", "cli", "document"]
+categories = ["command-line-utilities", "text-processing"]
+
+[dependencies]
+# CLI and error handling
+clap = { version = "4.5", features = ["derive"] }
+anyhow = "1.0"
+thiserror = "1.0"
+
+# PDF generation (core dependency)
+printpdf = "0.7"
+
+# Logging
+env_logger = "0.11"
+log = "0.4"
+
+# Phase 0.2.0+ dependencies (commented out until needed)
+# image = "0.25"
+# imageproc = "0.25"
+
+# Phase 0.3.0+ dependencies
+# pulldown-cmark = "0.11"
+# syntect = "5.2"
+
+# Phase 0.4.0+ dependencies
+# docx-rs = "0.4"
+
+# Phase 0.5.0+ dependencies
+# calamine = "0.25"
+# which = "6.0"
+
+# Phase 0.6.0+ dependencies
+# rayon = "1.10"
+# notify = "6.1"
+# indicatif = "0.17"
+
+[dev-dependencies]
+tempfile = "3.10"
+assert_cmd = "2.0"
+predicates = "3.1"
+
+# For content verification testing
+# pdf-extract = "0.7"
+
+# For snapshot testing
+# insta = "1.38"
+
+# For benchmarking
+# criterion = "0.5"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true  # Strip symbols for smaller binary
+
+[profile.dev]
+opt-level = 0
+
+[[bin]]
+name = "unipdf"
+path = "src/main.rs"
+
+# Benchmarks (Phase 1.0.0)
+# [[bench]]
+# name = "conversion_benchmarks"
+# harness = false

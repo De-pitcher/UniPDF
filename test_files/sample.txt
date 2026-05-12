@@ -1,0 +1,15 @@
+This is a sample text file for testing UniPDF text-to-PDF conversion.
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+
+Features to test:
+- UTF-8 encoding support
+- Line wrapping at 80 characters
+- Page breaks at 60 lines
+- Special characters: é, ñ, ü, 中文, العربية, עברית
+
+Long line test (should wrap): This is an intentionally long line of text that exceeds eighty characters and should be wrapped to the next line automatically by the text converter implementation.
+
+Multiple paragraphs should be preserved with blank lines between them.
+
+End of sample file.
