@@ -7,9 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.2.0] - 2026-05-12
+
 ### Phase 0.2.0 - Image Support
-**Status:** ⏳ Planned  
+**Status:** ✅ Completed  
 **Goal:** Convert images to PDF with proper sizing and rotation.
+
+#### Added
+- [x] Image file support (PNG, JPG, JPEG, GIF, BMP, WEBP)
+- [x] Automatic image scaling to fit A4 page with margins
+- [x] Centered image placement on page
+- [x] PNG transparency handling (composite on white background)
+- [x] Image format detection by file extension
+- [x] Header with filename on image pages
+- [x] Aspect ratio preservation during scaling
+- [x] RGB8 color space conversion for PDF compatibility
+
+#### Changed
+- Updated CLI to auto-detect file type (text vs image)
+- Enhanced error messages for unsupported file types
+- Added `embedded_images` feature to printpdf dependency
+
+#### Technical Details
+- Uses `image` crate v0.24 (matching printpdf dependency)
+- Implements transparency compositing for RGBA images
+- Maximum image size constrained by A4 dimensions minus margins
 
 ---
 

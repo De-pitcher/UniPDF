@@ -9,6 +9,25 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+#[derive(Debug)]
+enum FileType {
+    Text,
+    Image,
+    Unknown,
+}
+
+fn detect_file_type(path: &PathBuf) -> FileType {
+    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+        match ext.to_lowercase().as_str() {
+            "txt" => FileType::Text,
+            "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" => FileType::Image,
+            _ => FileType::Unknown,
+        }
+    } else {
+        FileType::Unknown
+    }
+}
+
 #[derive(Parser)]
 #[command(
     name = "unipdf",
@@ -64,8 +83,18 @@ fn main() -> Result<()> {
 
             println!("🔄 Converting {:?} to {:?}", input, output);
 
-            // Perform conversion
-            match converters::text::convert(&input, &output) {
+            // Detect file type and route to appropriate converter
+            let result = match detect_file_type(&input) {
+                FileType::Text => converters::text::convert(&input, &output),
+                FileType::Image => converters::image::convert(&input, &output),
+                FileType::Unknown => {
+                    eprintln!("❌ Error: Unsupported file type");
+                    eprintln!("💡 Supported: .txt, .png, .jpg, .jpeg, .gif, .bmp, .webp");
+                    std::process::exit(1);
+                }
+            };
+
+            match result {
                 Ok(_) => {
                     println!("✅ Successfully converted to {:?}", output);
                     Ok(())

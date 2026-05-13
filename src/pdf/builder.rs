@@ -1,6 +1,8 @@
 use crate::error::{ConversionError, Result};
-use printpdf::*;
+use printpdf::{PdfDocument, PdfDocumentReference, PdfPageIndex, PdfLayerIndex, PdfLayerReference};
+use printpdf::{Mm, BuiltinFont, IndirectFontRef, Image};
 use std::path::Path;
+extern crate image;
 
 // Page dimensions in mm
 const A4_WIDTH_MM: f32 = 210.0;
@@ -139,6 +141,69 @@ impl PdfBuilder {
             &self.font,
         );
 
+        Ok(())
+    }
+
+    pub fn add_image_page(&mut self, img: &image::DynamicImage, filename: &str, margin_mm: f32) -> Result<()> {
+        use image::GenericImageView;
+        
+        // Get image dimensions
+        let (img_width, img_height) = img.dimensions();
+        
+        // Calculate available space on page (minus margins)
+        let available_width = A4_WIDTH_MM - (2.0 * margin_mm);
+        let available_height = A4_HEIGHT_MM - (2.0 * margin_mm) - 20.0; // Extra space for header
+        
+        // Calculate scaling to fit image while maintaining aspect ratio
+        let width_scale = available_width / (img_width as f32);
+        let height_scale = available_height / (img_height as f32);
+        let scale = width_scale.min(height_scale);
+        
+        let scaled_width = (img_width as f32) * scale;
+        let scaled_height = (img_height as f32) * scale;
+        
+        // Center the image on the page
+        let x = (A4_WIDTH_MM - scaled_width) / 2.0;
+        let y = A4_HEIGHT_MM - margin_mm - 10.0 - scaled_height; // Below header
+        
+        // Convert image to RGB8 format for PDF
+        let rgb_img = img.to_rgb8();
+        
+        // Create image object for PDF
+        let image_obj = Image::from_dynamic_image(&image::DynamicImage::ImageRgb8(rgb_img));
+        
+        // Add image to first page (or create new page for batch)
+        let current_layer = self.doc.get_page(self.first_page).get_layer(self.first_layer);
+        
+        // Add header
+        self.add_image_header(&current_layer, filename)?;
+        
+        // Add the image
+        image_obj.add_to_layer(
+            current_layer.clone(),
+            printpdf::ImageTransform {
+                translate_x: Some(Mm(x)),
+                translate_y: Some(Mm(y)),
+                scale_x: Some(scale),
+                scale_y: Some(scale),
+                ..Default::default()
+            },
+        );
+        
+        Ok(())
+    }
+
+    fn add_image_header(&self, layer: &PdfLayerReference, filename: &str) -> Result<()> {
+        let header_y = A4_HEIGHT_MM - 15.0;
+        
+        layer.use_text(
+            filename,
+            FONT_SIZE,
+            Mm(MARGIN_LEFT_MM),
+            Mm(header_y),
+            &self.font,
+        );
+        
         Ok(())
     }
 
