@@ -18,7 +18,10 @@ const MARGIN_RIGHT_MM: f32 = 20.0;
 const FONT_SIZE: f32 = 10.0;
 const LINE_HEIGHT: f32 = 4.0; // in mm
 const CHARS_PER_LINE: usize = 80;
-const LINES_PER_PAGE: usize = 45;
+
+// Courier font metrics at 10pt (monospace)
+// 1 point = 0.3527778 mm, Courier character width ≈ 0.6 em = 6 points
+const COURIER_CHAR_WIDTH_MM: f32 = 2.117; // Accurate width per character
 
 pub struct PdfBuilder {
     doc: PdfDocumentReference,
@@ -44,12 +47,15 @@ impl PdfBuilder {
         })
     }
 
-    pub fn add_text_pages(&mut self, content: &str, filename: &str) -> Result<()> {
+    pub fn add_text_pages(&mut self, content: &str, filename: &str, include_header: bool, include_footer: bool) -> Result<()> {
+        // Calculate dynamic margins and content area based on what's enabled
+        let (top_margin, _bottom_margin, lines_per_page) = Self::calculate_layout(include_header, include_footer);
+        
         let lines: Vec<&str> = content.lines().collect();
-        let total_pages = (lines.len() + LINES_PER_PAGE - 1) / LINES_PER_PAGE;
+        let total_pages = (lines.len() + lines_per_page - 1) / lines_per_page;
         let total_pages = total_pages.max(1); // At least 1 page
 
-        for (page_num, chunk) in lines.chunks(LINES_PER_PAGE).enumerate() {
+        for (page_num, chunk) in lines.chunks(lines_per_page).enumerate() {
             let (page_idx, layer_idx) = if page_num == 0 {
                 // Use the first page that was created with the document
                 (self.first_page, self.first_layer)
@@ -60,17 +66,38 @@ impl PdfBuilder {
 
             let current_layer = self.doc.get_page(page_idx).get_layer(layer_idx);
             
-            // Add header (filename and page number)
-            self.add_header(&current_layer, filename, page_num + 1, total_pages)?;
+            // Add header (filename and page number) if enabled
+            if include_header {
+                self.add_header(&current_layer, filename, page_num + 1, total_pages)?;
+            }
 
             // Add text content
-            self.add_text_content(&current_layer, chunk)?;
+            self.add_text_content(&current_layer, chunk, top_margin)?;
 
-            // Add footer (timestamp)
-            self.add_footer(&current_layer)?;
+            // Add footer (timestamp) if enabled
+            if include_footer {
+                self.add_footer(&current_layer)?;
+            }
         }
 
         Ok(())
+    }
+
+    /// Calculate optimal layout based on enabled features
+    /// Returns: (top_margin, bottom_margin, lines_per_page)
+    fn calculate_layout(include_header: bool, include_footer: bool) -> (f32, f32, usize) {
+        // Extra space needed for header/footer
+        let header_space = if include_header { 10.0 } else { 0.0 };
+        let footer_space = if include_footer { 10.0 } else { 0.0 };
+        
+        let top_margin = MARGIN_TOP_MM - (if include_header { 0.0 } else { 10.0 });
+        let bottom_margin = MARGIN_BOTTOM_MM - (if include_footer { 0.0 } else { 10.0 });
+        
+        // Calculate available vertical space for text content
+        let total_content_height = A4_HEIGHT_MM - top_margin - bottom_margin - header_space - footer_space;
+        let lines_per_page = (total_content_height / LINE_HEIGHT).floor() as usize;
+        
+        (top_margin, bottom_margin, lines_per_page)
     }
 
     fn add_header(&self, layer: &PdfLayerReference, filename: &str, page_num: usize, total_pages: usize) -> Result<()> {
@@ -87,7 +114,7 @@ impl PdfBuilder {
 
         // Right side: page number
         let page_text = format!("Page {} of {}", page_num, total_pages);
-        let text_width_mm = page_text.len() as f32 * 2.0; // Approximate width
+        let text_width_mm = page_text.len() as f32 * COURIER_CHAR_WIDTH_MM;
         layer.use_text(
             &page_text,
             FONT_SIZE,
@@ -99,23 +126,36 @@ impl PdfBuilder {
         Ok(())
     }
 
-    fn add_text_content(&self, layer: &PdfLayerReference, lines: &[&str]) -> Result<()> {
-        let start_y = A4_HEIGHT_MM - MARGIN_TOP_MM - 10.0; // Below header
+    fn add_text_content(&self, layer: &PdfLayerReference, lines: &[&str], top_margin: f32) -> Result<()> {
+        let start_y = A4_HEIGHT_MM - top_margin - 10.0; // Below header if present
 
         let mut line_count = 0;
         for line in lines.iter() {
-            // Wrap long lines
-            let wrapped = wrap_line(line, CHARS_PER_LINE);
-            for wrapped_line in wrapped.iter() {
+            // Skip wrapping if line is already short enough
+            if line.len() <= CHARS_PER_LINE {
                 let y = start_y - (line_count as f32 * LINE_HEIGHT);
                 layer.use_text(
-                    wrapped_line,
+                    *line,
                     FONT_SIZE,
                     Mm(MARGIN_LEFT_MM),
                     Mm(y),
                     &self.font,
                 );
                 line_count += 1;
+            } else {
+                // Wrap long lines
+                let wrapped = wrap_line(line, CHARS_PER_LINE);
+                for wrapped_line in wrapped.iter() {
+                    let y = start_y - (line_count as f32 * LINE_HEIGHT);
+                    layer.use_text(
+                        wrapped_line,
+                        FONT_SIZE,
+                        Mm(MARGIN_LEFT_MM),
+                        Mm(y),
+                        &self.font,
+                    );
+                    line_count += 1;
+                }
             }
         }
 
@@ -129,8 +169,8 @@ impl PdfBuilder {
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
         let footer_text = format!("Generated: {}", timestamp);
         
-        // Center the footer (approximate)
-        let text_width_mm = footer_text.len() as f32 * 2.0;
+        // Center the footer using accurate character width
+        let text_width_mm = footer_text.len() as f32 * COURIER_CHAR_WIDTH_MM;
         let x = (A4_WIDTH_MM - text_width_mm) / 2.0;
         
         layer.use_text(
@@ -223,27 +263,26 @@ impl PdfBuilder {
 
 // Helper function to wrap lines at character limit
 fn wrap_line(line: &str, max_chars: usize) -> Vec<String> {
-    if line.len() <= max_chars {
-        return vec![line.to_string()];
-    }
-
-    let mut result = Vec::new();
-    let mut current = String::new();
+    // Estimate number of wrapped lines for pre-allocation
+    let estimated_lines = (line.len() / max_chars) + 1;
+    let mut result = Vec::with_capacity(estimated_lines);
+    let mut current = String::with_capacity(max_chars);
 
     for word in line.split_whitespace() {
         if current.len() + word.len() + 1 > max_chars {
             if !current.is_empty() {
-                result.push(current.clone());
-                current.clear();
+                result.push(std::mem::take(&mut current));
+                current = String::with_capacity(max_chars);
             }
             
             // If a single word is longer than max_chars, split it
             if word.len() > max_chars {
-                for chunk in word.chars().collect::<Vec<_>>().chunks(max_chars) {
+                let chars: Vec<char> = word.chars().collect();
+                for chunk in chars.chunks(max_chars) {
                     result.push(chunk.iter().collect());
                 }
             } else {
-                current = word.to_string();
+                current.push_str(word);
             }
         } else {
             if !current.is_empty() {

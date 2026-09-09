@@ -50,6 +50,14 @@ enum Commands {
         /// Output PDF path (optional, defaults to input name with .pdf extension)
         #[arg(short, long)]
         output: Option<PathBuf>,
+
+        /// Disable header (filename and page numbers)
+        #[arg(long)]
+        no_header: bool,
+
+        /// Disable footer (timestamp)
+        #[arg(long)]
+        no_footer: bool,
     },
 
     /// Convert multiple files to a single PDF
@@ -72,7 +80,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Convert { input, output } => {
+        Commands::Convert { input, output, no_header, no_footer } => {
             let output = output.unwrap_or_else(|| input.with_extension("pdf"));
             
             // Validate input file exists
@@ -85,7 +93,7 @@ fn main() -> Result<()> {
 
             // Detect file type and route to appropriate converter
             let result = match detect_file_type(&input) {
-                FileType::Text => converters::text::convert(&input, &output),
+                FileType::Text => converters::text::convert(&input, &output, !no_header, !no_footer),
                 FileType::Image => converters::image::convert(&input, &output),
                 FileType::Unknown => {
                     eprintln!("❌ Error: Unsupported file type");

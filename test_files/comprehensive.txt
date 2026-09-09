@@ -1,0 +1,27 @@
+﻿# Text-to-PDF Performance Test File
+
+## Section 1: Short Lines (Phase 1 - No wrapping needed)
+This is a short line.
+Another short line here.
+Testing memory efficiency.
+
+## Section 2: Long Lines (Phase 1 - Wrapping optimization)
+This is an extremely long line that will definitely exceed the eighty character limit and should trigger the wrapping functionality to break it into multiple lines properly without wasting memory allocations.
+
+## Section 3: Tab Characters (Phase 3 - Tab expansion)
+Column1Column2Column3Column4
+Value1Value2Value3Value4
+Indented with tab
+Double indented
+
+## Section 4: Mixed Content
+Short line
+Tabbed line that is also quite long and will need wrapping after tab expansion happens
+Another normal line
+
+## Section 5: Special Characters
+Héllo Wörld! Café ☕
+日本語 テスト
+
+## Test Complete
+All phases validated!
