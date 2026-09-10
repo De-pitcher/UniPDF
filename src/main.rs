@@ -14,6 +14,7 @@ enum FileType {
     Text,
     Image,
     Markdown,
+    Docx,
     Unknown,
 }
 
@@ -23,6 +24,7 @@ fn detect_file_type(path: &PathBuf) -> FileType {
             "txt" => FileType::Text,
             "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" => FileType::Image,
             "md" | "markdown" => FileType::Markdown,
+            "docx" => FileType::Docx,
             _ => FileType::Unknown,
         }
     } else {
@@ -98,9 +100,10 @@ fn main() -> Result<()> {
                 FileType::Text => converters::text::convert(&input, &output, !no_header, !no_footer),
                 FileType::Image => converters::image::convert(&input, &output),
                 FileType::Markdown => converters::markdown::convert(&input, &output, !no_header, !no_footer),
+                FileType::Docx => converters::docx::convert(&input, &output, !no_header, !no_footer),
                 FileType::Unknown => {
                     eprintln!("❌ Error: Unsupported file type");
-                    eprintln!("💡 Supported: .txt, .png, .jpg, .jpeg, .gif, .bmp, .webp, .md, .markdown");
+                    eprintln!("💡 Supported: .txt, .png, .jpg, .jpeg, .gif, .bmp, .webp, .md, .markdown, .docx");
                     std::process::exit(1);
                 }
             };

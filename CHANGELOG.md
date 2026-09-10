@@ -5,6 +5,23 @@ All notable changes to UniPDF will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-09-10
+
+### Phase 0.4.0 - Native DOCX Support
+**Status:** ✅ Completed  
+**Goal:** Convert Microsoft Word (`.docx`) documents to PDF using 100% native Rust without requiring Microsoft Word or LibreOffice.
+
+#### Added
+- [x] Native OpenXML / DOCX parsing engine via `docx-rs`
+- [x] Paragraph extraction supporting bold, italic, line breaks, and hyperlinks
+- [x] Heading hierarchy detection (H1 to H4, Title, Subtitle) with proportional typographic scales and vector rules
+- [x] Full table layout engine: automatic column widths, multiline cell wrapping, bold header rows, row borders, and vertical cell dividing lines
+- [x] Dynamic multi-page splitting for large documents and long tables
+- [x] Command-line auto-detection and routing for `.docx` files
+- [x] Comprehensive integration and stress tests verifying native conversion of complex documents
+
+---
+
 ## [0.3.0] - 2026-09-10
 
 ### Phase 0.3.0 - Markdown Support

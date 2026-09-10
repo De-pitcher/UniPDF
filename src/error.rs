@@ -23,6 +23,9 @@ pub enum ConversionError {
 
     #[error("Font loading failed: {0}")]
     FontError(String),
+
+    #[error("Unsupported format: {0}")]
+    UnsupportedFormat(String),
 }
 
 pub type Result<T> = std::result::Result<T, ConversionError>;

@@ -530,6 +530,213 @@ impl PdfBuilder {
         Ok(())
     }
 
+    pub fn add_docx_pages(
+        &mut self,
+        blocks: &[DocxBlock],
+        filename: &str,
+        include_header: bool,
+        include_footer: bool,
+    ) -> Result<()> {
+        let mut pages: Vec<(PdfPageIndex, PdfLayerIndex)> = vec![(self.first_page, self.first_layer)];
+        let mut current_page_idx = 0;
+
+        let top_margin = if include_header { MARGIN_TOP_MM } else { MARGIN_TOP_MM - 10.0 };
+        let bottom_margin = if include_footer { MARGIN_BOTTOM_MM } else { MARGIN_BOTTOM_MM - 10.0 };
+        let mut current_y = A4_HEIGHT_MM - top_margin - 10.0;
+        let max_content_width = A4_WIDTH_MM - MARGIN_LEFT_MM - MARGIN_RIGHT_MM;
+
+        for block in blocks {
+            match block {
+                DocxBlock::Heading { level, text } => {
+                    let (font_size, line_h, margin_before, margin_after) = match level {
+                        1 => (18.0, 7.5, 6.0, 3.0),
+                        2 => (14.5, 6.0, 5.0, 2.5),
+                        3 => (12.0, 5.0, 4.0, 2.0),
+                        _ => (10.5, 4.5, 3.0, 1.5),
+                    };
+
+                    let max_chars = match level {
+                        1 => 42,
+                        2 => 52,
+                        3 => 62,
+                        _ => 72,
+                    };
+                    let wrapped_lines = wrap_line(text, max_chars);
+
+                    let needed_h = margin_before + (wrapped_lines.len() as f32 * line_h) + margin_after;
+                    if current_y - needed_h < bottom_margin {
+                        let (new_p, new_l) = self.doc.add_page(Mm(A4_WIDTH_MM), Mm(A4_HEIGHT_MM), "Layer 1");
+                        pages.push((new_p, new_l));
+                        current_page_idx += 1;
+                        current_y = A4_HEIGHT_MM - top_margin - 10.0;
+                    }
+
+                    current_y -= margin_before;
+                    let layer = self.doc.get_page(pages[current_page_idx].0).get_layer(pages[current_page_idx].1);
+
+                    for line in &wrapped_lines {
+                        layer.use_text(line, font_size, Mm(MARGIN_LEFT_MM), Mm(current_y), &self.font_helvetica_bold);
+                        current_y -= line_h;
+                    }
+
+                    if *level == 1 {
+                        let line_y = current_y + line_h - 1.5;
+                        self.draw_rule(&layer, MARGIN_LEFT_MM, A4_WIDTH_MM - MARGIN_RIGHT_MM, line_y, 0.4, 0.8);
+                    }
+
+                    current_y -= margin_after;
+                }
+                DocxBlock::Paragraph { spans } => {
+                    let font_size = 10.0;
+                    let line_h = 4.5;
+                    let lines = wrap_spans(spans, max_content_width, font_size);
+
+                    for line in lines {
+                        if current_y - line_h < bottom_margin {
+                            let (new_p, new_l) = self.doc.add_page(Mm(A4_WIDTH_MM), Mm(A4_HEIGHT_MM), "Layer 1");
+                            pages.push((new_p, new_l));
+                            current_page_idx += 1;
+                            current_y = A4_HEIGHT_MM - top_margin - 10.0;
+                        }
+
+                        let layer = self.doc.get_page(pages[current_page_idx].0).get_layer(pages[current_page_idx].1);
+                        render_styled_line(
+                            &layer,
+                            &line,
+                            MARGIN_LEFT_MM,
+                            current_y,
+                            font_size,
+                            &self.font_helvetica,
+                            &self.font_helvetica_bold,
+                            &self.font_helvetica_oblique,
+                            &self.font_helvetica_bold_oblique,
+                            &self.font_courier,
+                            &self.font_courier_bold,
+                        );
+                        current_y -= line_h;
+                    }
+                    current_y -= 2.5;
+                }
+                DocxBlock::Table(table) => {
+                    if table.rows.is_empty() {
+                        continue;
+                    }
+
+                    // Count max columns
+                    let col_count = table.rows.iter().map(|r| r.cells.len()).max().unwrap_or(0);
+                    if col_count == 0 {
+                        continue;
+                    }
+
+                    let col_width = max_content_width / (col_count as f32);
+                    let cell_font_size = 9.0;
+                    let cell_line_h = 4.0;
+                    let cell_padding = 2.0;
+                    let text_max_w = (col_width - (cell_padding * 2.0)).max(5.0);
+
+                    // Add spacing before table
+                    current_y -= 3.0;
+
+                    for (row_idx, row) in table.rows.iter().enumerate() {
+                        // Pre-wrap each cell in this row to compute row height
+                        let mut row_wrapped_cells: Vec<Vec<Vec<StyledWord>>> = Vec::new();
+                        let mut max_cell_lines = 1;
+
+                        for col_idx in 0..col_count {
+                            if let Some(cell) = row.cells.get(col_idx) {
+                                let mut spans = cell.spans.clone();
+                                // Bold the first row (header row)
+                                if row_idx == 0 {
+                                    for s in &mut spans {
+                                        s.is_bold = true;
+                                    }
+                                }
+                                let wrapped = wrap_spans(&spans, text_max_w, cell_font_size);
+                                max_cell_lines = max_cell_lines.max(wrapped.len().max(1));
+                                row_wrapped_cells.push(wrapped);
+                            } else {
+                                row_wrapped_cells.push(Vec::new());
+                            }
+                        }
+
+                        let row_height = (max_cell_lines as f32 * cell_line_h) + (cell_padding * 2.0);
+
+                        // Check if row fits on current page
+                        if current_y - row_height < bottom_margin {
+                            let (new_p, new_l) = self.doc.add_page(Mm(A4_WIDTH_MM), Mm(A4_HEIGHT_MM), "Layer 1");
+                            pages.push((new_p, new_l));
+                            current_page_idx += 1;
+                            current_y = A4_HEIGHT_MM - top_margin - 10.0;
+                        }
+
+                        let layer = self.doc.get_page(pages[current_page_idx].0).get_layer(pages[current_page_idx].1);
+
+                        let row_top = current_y;
+                        let row_bottom = current_y - row_height;
+
+                        // Draw top border if first row
+                        if row_idx == 0 {
+                            self.draw_rule(&layer, MARGIN_LEFT_MM, MARGIN_LEFT_MM + max_content_width, row_top, 0.8, 0.4);
+                        }
+
+                        // Render cell contents
+                        for (col_idx, cell_lines) in row_wrapped_cells.iter().enumerate() {
+                            let cell_x = MARGIN_LEFT_MM + (col_idx as f32 * col_width) + cell_padding;
+                            let mut cell_y = row_top - cell_padding - (cell_line_h * 0.75);
+
+                            for line in cell_lines {
+                                render_styled_line(
+                                    &layer,
+                                    line,
+                                    cell_x,
+                                    cell_y,
+                                    cell_font_size,
+                                    &self.font_helvetica,
+                                    &self.font_helvetica_bold,
+                                    &self.font_helvetica_oblique,
+                                    &self.font_helvetica_bold_oblique,
+                                    &self.font_courier,
+                                    &self.font_courier_bold,
+                                );
+                                cell_y -= cell_line_h;
+                            }
+                        }
+
+                        // Draw bottom border of row
+                        let border_thickness = if row_idx == 0 { 0.6 } else { 0.3 };
+                        let border_gray = if row_idx == 0 { 0.5 } else { 0.75 };
+                        self.draw_rule(&layer, MARGIN_LEFT_MM, MARGIN_LEFT_MM + max_content_width, row_bottom, border_thickness, border_gray);
+
+                        // Draw vertical cell dividing lines
+                        for col_idx in 0..=col_count {
+                            let vert_x = MARGIN_LEFT_MM + (col_idx as f32 * col_width);
+                            self.draw_vertical_bar(&layer, vert_x, row_bottom, row_top, 0.3, 0.75);
+                        }
+
+                        current_y = row_bottom;
+                    }
+
+                    // Spacing after table
+                    current_y -= 4.0;
+                }
+            }
+        }
+
+        // Add headers and footers across all created pages
+        let total_pages = pages.len();
+        for (page_num, (p_idx, l_idx)) in pages.iter().enumerate() {
+            let layer = self.doc.get_page(*p_idx).get_layer(*l_idx);
+            if include_header {
+                self.add_header(&layer, filename, page_num + 1, total_pages)?;
+            }
+            if include_footer {
+                self.add_footer(&layer)?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn draw_rule(&self, layer: &PdfLayerReference, x_start: f32, x_end: f32, y: f32, thickness: f32, gray: f32) {
         let line = Line {
             points: vec![
@@ -610,6 +817,28 @@ fn wrap_line(line: &str, max_chars: usize) -> Vec<String> {
     }
 
     result
+}
+
+#[derive(Debug, Clone)]
+pub enum DocxBlock {
+    Heading { level: u8, text: String },
+    Paragraph { spans: Vec<MdSpan> },
+    Table(DocxTable),
+}
+
+#[derive(Debug, Clone)]
+pub struct DocxTable {
+    pub rows: Vec<DocxTableRow>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DocxTableRow {
+    pub cells: Vec<DocxTableCell>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DocxTableCell {
+    pub spans: Vec<MdSpan>,
 }
 
 #[derive(Debug, Clone)]

@@ -82,3 +82,65 @@ fn test_convert_markdown_file() {
 
     std::fs::remove_file(output).ok();
 }
+
+mod generate_docx_fixtures;
+
+#[test]
+fn test_convert_docx_file() {
+    let input = "test_files/sample.docx";
+    let output = "test_outputs/sample_docx.pdf";
+
+    std::fs::create_dir_all("test_files").ok();
+    std::fs::create_dir_all("test_outputs").ok();
+
+    // Generate fixture if not present
+    generate_docx_fixtures::create_test_docx(Path::new(input));
+
+    let mut cmd = Command::cargo_bin("unipdf").unwrap();
+    cmd.arg("convert")
+        .arg(input)
+        .arg("--output")
+        .arg(output)
+        .assert()
+        .success();
+
+    assert!(Path::new(output).exists());
+    let metadata = std::fs::metadata(output).unwrap();
+    assert!(metadata.len() > 0, "Generated DOCX PDF is empty");
+
+    // Verify PDF signature (%PDF-)
+    let bytes = std::fs::read(output).unwrap();
+    assert!(bytes.starts_with(b"%PDF-"), "Output is not a valid PDF file");
+
+    std::fs::remove_file(output).ok();
+}
+
+#[test]
+fn test_convert_complex_docx_stress() {
+    let input = "test_files/complex_stress_test.docx";
+    let output = "test_outputs/complex_stress_docx.pdf";
+
+    std::fs::create_dir_all("test_files").ok();
+    std::fs::create_dir_all("test_outputs").ok();
+
+    // Generate complex multi-page DOCX fixture
+    generate_docx_fixtures::create_complex_docx(Path::new(input));
+
+    let mut cmd = Command::cargo_bin("unipdf").unwrap();
+    cmd.arg("convert")
+        .arg(input)
+        .arg("--output")
+        .arg(output)
+        .assert()
+        .success();
+
+    assert!(Path::new(output).exists());
+    let metadata = std::fs::metadata(output).unwrap();
+    assert!(metadata.len() > 1000, "Generated complex DOCX PDF is too small");
+
+    let bytes = std::fs::read(output).unwrap();
+    assert!(bytes.starts_with(b"%PDF-"), "Output is not a valid PDF file");
+
+    std::fs::remove_file(output).ok();
+}
+
