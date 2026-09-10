@@ -5,6 +5,22 @@ All notable changes to UniPDF will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-09-10
+
+### Phase 0.6.0 - Batch Processing & PDF Merging
+**Status:** ✅ Completed  
+**Goal:** Parallel multi-file batch processing via glob patterns and multi-file PDF merging.
+
+#### Added
+- [x] Batch command (`unipdf batch`) supporting glob patterns (`docs/**/*.txt`, `*.docx`, etc.)
+- [x] Multi-threaded worker pool using `rayon` with configurable `--threads <N>` parameter
+- [x] Real-time visual progress reporting via `indicatif`
+- [x] Fault-tolerant batch summary report (tracks succeeded vs failed files)
+- [x] PDF merging command (`unipdf merge`) using `lopdf` to concatenate multiple PDFs into a single document
+- [x] Unit and integration tests for batch conversion workflows and multi-document PDF merging
+
+---
+
 ## [0.5.0] - 2026-09-10
 
 ### Phase 0.5.0 - Native XLSX Support & Fallback System

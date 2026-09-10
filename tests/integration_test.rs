@@ -196,4 +196,67 @@ fn test_convert_complex_xlsx_stress() {
     std::fs::remove_file(output).ok();
 }
 
+#[test]
+fn test_batch_conversion() {
+    let out_dir = "test_outputs/batch_run";
+    std::fs::create_dir_all(out_dir).ok();
+
+    let mut cmd = Command::cargo_bin("unipdf").unwrap();
+    cmd.arg("batch")
+        .arg("--pattern")
+        .arg("test_files/*.txt")
+        .arg("--output-dir")
+        .arg(out_dir)
+        .arg("--threads")
+        .arg("1")
+        .assert()
+        .success();
+
+    // Verify converted files exist
+    assert!(Path::new("test_outputs/batch_run/sample.pdf").exists());
+    assert!(Path::new("test_outputs/batch_run/comprehensive.pdf").exists());
+
+    // Clean up
+    std::fs::remove_dir_all(out_dir).ok();
+}
+
+#[test]
+fn test_merge_pdfs() {
+    let pdf1 = "test_outputs/merge_in1.pdf";
+    let pdf2 = "test_outputs/merge_in2.pdf";
+    let merged = "test_outputs/merged_result.pdf";
+
+    std::fs::create_dir_all("test_outputs").ok();
+
+    // Create two simple PDFs to merge
+    let mut cmd1 = Command::cargo_bin("unipdf").unwrap();
+    cmd1.arg("convert").arg("test_files/short.txt").arg("--output").arg(pdf1).assert().success();
+
+    let mut cmd2 = Command::cargo_bin("unipdf").unwrap();
+    cmd2.arg("convert").arg("test_files/sample.txt").arg("--output").arg(pdf2).assert().success();
+
+    // Execute Merge command
+    let mut merge_cmd = Command::cargo_bin("unipdf").unwrap();
+    merge_cmd.arg("merge")
+        .arg(pdf1)
+        .arg(pdf2)
+        .arg("--output")
+        .arg(merged)
+        .assert()
+        .success();
+
+    assert!(Path::new(merged).exists());
+    let metadata = std::fs::metadata(merged).unwrap();
+    assert!(metadata.len() > 0, "Merged PDF is empty");
+
+    let bytes = std::fs::read(merged).unwrap();
+    assert!(bytes.starts_with(b"%PDF-"), "Merged output is not a valid PDF");
+
+    // Clean up
+    std::fs::remove_file(pdf1).ok();
+    std::fs::remove_file(pdf2).ok();
+    std::fs::remove_file(merged).ok();
+}
+
+
 
