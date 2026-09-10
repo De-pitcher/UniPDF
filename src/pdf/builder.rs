@@ -1,6 +1,6 @@
 use crate::error::{ConversionError, Result};
 use printpdf::{PdfDocument, PdfDocumentReference, PdfPageIndex, PdfLayerIndex, PdfLayerReference};
-use printpdf::{Mm, BuiltinFont, IndirectFontRef, Image};
+use printpdf::{Mm, BuiltinFont, IndirectFontRef, Image, Line, Point, Rgb, Color};
 use std::path::Path;
 extern crate image;
 
@@ -26,6 +26,12 @@ const COURIER_CHAR_WIDTH_MM: f32 = 2.117; // Accurate width per character
 pub struct PdfBuilder {
     doc: PdfDocumentReference,
     font: IndirectFontRef,
+    pub font_helvetica: IndirectFontRef,
+    pub font_helvetica_bold: IndirectFontRef,
+    pub font_helvetica_oblique: IndirectFontRef,
+    pub font_helvetica_bold_oblique: IndirectFontRef,
+    pub font_courier: IndirectFontRef,
+    pub font_courier_bold: IndirectFontRef,
     first_page: PdfPageIndex,
     first_layer: PdfLayerIndex,
 }
@@ -35,13 +41,29 @@ impl PdfBuilder {
         // Create PDF document
         let (doc, page1, layer1) = PdfDocument::new(title, Mm(A4_WIDTH_MM), Mm(A4_HEIGHT_MM), "Layer 1");
         
-        // Load built-in font (we'll use Courier for monospace)
-        let font = doc.add_builtin_font(BuiltinFont::Courier)
+        // Load built-in fonts
+        let font_courier = doc.add_builtin_font(BuiltinFont::Courier)
+            .map_err(|e| ConversionError::FontError(format!("Failed to load font: {:?}", e)))?;
+        let font_courier_bold = doc.add_builtin_font(BuiltinFont::CourierBold)
+            .map_err(|e| ConversionError::FontError(format!("Failed to load font: {:?}", e)))?;
+        let font_helvetica = doc.add_builtin_font(BuiltinFont::Helvetica)
+            .map_err(|e| ConversionError::FontError(format!("Failed to load font: {:?}", e)))?;
+        let font_helvetica_bold = doc.add_builtin_font(BuiltinFont::HelveticaBold)
+            .map_err(|e| ConversionError::FontError(format!("Failed to load font: {:?}", e)))?;
+        let font_helvetica_oblique = doc.add_builtin_font(BuiltinFont::HelveticaOblique)
+            .map_err(|e| ConversionError::FontError(format!("Failed to load font: {:?}", e)))?;
+        let font_helvetica_bold_oblique = doc.add_builtin_font(BuiltinFont::HelveticaBoldOblique)
             .map_err(|e| ConversionError::FontError(format!("Failed to load font: {:?}", e)))?;
 
         Ok(Self {
             doc,
-            font,
+            font: font_courier.clone(),
+            font_helvetica,
+            font_helvetica_bold,
+            font_helvetica_oblique,
+            font_helvetica_bold_oblique,
+            font_courier,
+            font_courier_bold,
             first_page: page1,
             first_layer: layer1,
         })
@@ -247,6 +269,293 @@ impl PdfBuilder {
         Ok(())
     }
 
+    pub fn add_markdown_pages(
+        &mut self,
+        blocks: &[MdBlock],
+        filename: &str,
+        include_header: bool,
+        include_footer: bool,
+    ) -> Result<()> {
+        let mut pages: Vec<(PdfPageIndex, PdfLayerIndex)> = vec![(self.first_page, self.first_layer)];
+        let mut current_page_idx = 0;
+
+        let top_margin = if include_header { MARGIN_TOP_MM } else { MARGIN_TOP_MM - 10.0 };
+        let bottom_margin = if include_footer { MARGIN_BOTTOM_MM } else { MARGIN_BOTTOM_MM - 10.0 };
+        let mut current_y = A4_HEIGHT_MM - top_margin - 10.0;
+        let max_content_width = A4_WIDTH_MM - MARGIN_LEFT_MM - MARGIN_RIGHT_MM;
+
+        for block in blocks {
+            match block {
+                MdBlock::Heading { level, text } => {
+                    let (font_size, line_h, margin_before, margin_after) = match level {
+                        1 => (18.0, 7.5, 6.0, 3.0),
+                        2 => (14.5, 6.0, 5.0, 2.5),
+                        3 => (12.0, 5.0, 4.0, 2.0),
+                        _ => (10.5, 4.5, 3.0, 1.5),
+                    };
+
+                    let max_chars = match level {
+                        1 => 42,
+                        2 => 52,
+                        3 => 62,
+                        _ => 72,
+                    };
+                    let wrapped_lines = wrap_line(text, max_chars);
+
+                    let needed_h = margin_before + (wrapped_lines.len() as f32 * line_h) + margin_after;
+                    if current_y - needed_h < bottom_margin {
+                        let (new_p, new_l) = self.doc.add_page(Mm(A4_WIDTH_MM), Mm(A4_HEIGHT_MM), "Layer 1");
+                        pages.push((new_p, new_l));
+                        current_page_idx += 1;
+                        current_y = A4_HEIGHT_MM - top_margin - 10.0;
+                    }
+
+                    current_y -= margin_before;
+                    let layer = self.doc.get_page(pages[current_page_idx].0).get_layer(pages[current_page_idx].1);
+
+                    for line in &wrapped_lines {
+                        layer.use_text(line, font_size, Mm(MARGIN_LEFT_MM), Mm(current_y), &self.font_helvetica_bold);
+                        current_y -= line_h;
+                    }
+
+                    if *level == 1 {
+                        let line_y = current_y + line_h - 1.5;
+                        self.draw_rule(&layer, MARGIN_LEFT_MM, A4_WIDTH_MM - MARGIN_RIGHT_MM, line_y, 0.4, 0.8);
+                    }
+
+                    current_y -= margin_after;
+                }
+                MdBlock::Paragraph { spans } => {
+                    let font_size = 10.0;
+                    let line_h = 4.5;
+                    let lines = wrap_spans(spans, max_content_width, font_size);
+
+                    for line in lines {
+                        if current_y - line_h < bottom_margin {
+                            let (new_p, new_l) = self.doc.add_page(Mm(A4_WIDTH_MM), Mm(A4_HEIGHT_MM), "Layer 1");
+                            pages.push((new_p, new_l));
+                            current_page_idx += 1;
+                            current_y = A4_HEIGHT_MM - top_margin - 10.0;
+                        }
+
+                        let layer = self.doc.get_page(pages[current_page_idx].0).get_layer(pages[current_page_idx].1);
+                        render_styled_line(
+                            &layer,
+                            &line,
+                            MARGIN_LEFT_MM,
+                            current_y,
+                            font_size,
+                            &self.font_helvetica,
+                            &self.font_helvetica_bold,
+                            &self.font_helvetica_oblique,
+                            &self.font_helvetica_bold_oblique,
+                            &self.font_courier,
+                            &self.font_courier_bold,
+                        );
+                        current_y -= line_h;
+                    }
+                    current_y -= 2.5;
+                }
+                MdBlock::BulletItem { indent_level, spans } => {
+                    let font_size = 10.0;
+                    let line_h = 4.5;
+                    let base_indent = MARGIN_LEFT_MM + (*indent_level as f32 * 5.0);
+                    let content_x = base_indent + 5.0;
+                    let max_w = A4_WIDTH_MM - MARGIN_RIGHT_MM - content_x;
+
+                    let lines = wrap_spans(spans, max_w, font_size);
+
+                    for (i, line) in lines.iter().enumerate() {
+                        if current_y - line_h < bottom_margin {
+                            let (new_p, new_l) = self.doc.add_page(Mm(A4_WIDTH_MM), Mm(A4_HEIGHT_MM), "Layer 1");
+                            pages.push((new_p, new_l));
+                            current_page_idx += 1;
+                            current_y = A4_HEIGHT_MM - top_margin - 10.0;
+                        }
+
+                        let layer = self.doc.get_page(pages[current_page_idx].0).get_layer(pages[current_page_idx].1);
+                        if i == 0 {
+                            layer.use_text("-", font_size, Mm(base_indent), Mm(current_y), &self.font_helvetica_bold);
+                        }
+                        render_styled_line(
+                            &layer,
+                            line,
+                            content_x,
+                            current_y,
+                            font_size,
+                            &self.font_helvetica,
+                            &self.font_helvetica_bold,
+                            &self.font_helvetica_oblique,
+                            &self.font_helvetica_bold_oblique,
+                            &self.font_courier,
+                            &self.font_courier_bold,
+                        );
+                        current_y -= line_h;
+                    }
+                    current_y -= 1.5;
+                }
+                MdBlock::OrderedItem { number, indent_level, spans } => {
+                    let font_size = 10.0;
+                    let line_h = 4.5;
+                    let base_indent = MARGIN_LEFT_MM + (*indent_level as f32 * 5.0);
+                    let prefix = format!("{}. ", number);
+                    let prefix_w = prefix.len() as f32 * 2.2;
+                    let content_x = base_indent + prefix_w.max(6.0);
+                    let max_w = A4_WIDTH_MM - MARGIN_RIGHT_MM - content_x;
+
+                    let lines = wrap_spans(spans, max_w, font_size);
+
+                    for (i, line) in lines.iter().enumerate() {
+                        if current_y - line_h < bottom_margin {
+                            let (new_p, new_l) = self.doc.add_page(Mm(A4_WIDTH_MM), Mm(A4_HEIGHT_MM), "Layer 1");
+                            pages.push((new_p, new_l));
+                            current_page_idx += 1;
+                            current_y = A4_HEIGHT_MM - top_margin - 10.0;
+                        }
+
+                        let layer = self.doc.get_page(pages[current_page_idx].0).get_layer(pages[current_page_idx].1);
+                        if i == 0 {
+                            layer.use_text(&prefix, font_size, Mm(base_indent), Mm(current_y), &self.font_helvetica_bold);
+                        }
+                        render_styled_line(
+                            &layer,
+                            line,
+                            content_x,
+                            current_y,
+                            font_size,
+                            &self.font_helvetica,
+                            &self.font_helvetica_bold,
+                            &self.font_helvetica_oblique,
+                            &self.font_helvetica_bold_oblique,
+                            &self.font_courier,
+                            &self.font_courier_bold,
+                        );
+                        current_y -= line_h;
+                    }
+                    current_y -= 1.5;
+                }
+                MdBlock::BlockQuote { spans } => {
+                    let font_size = 9.5;
+                    let line_h = 4.5;
+                    let content_x = MARGIN_LEFT_MM + 6.0;
+                    let max_w = A4_WIDTH_MM - MARGIN_RIGHT_MM - content_x;
+
+                    let lines = wrap_spans(spans, max_w, font_size);
+                    let needed_h = (lines.len() as f32 * line_h) + 2.0;
+
+                    if current_y - needed_h < bottom_margin {
+                        let (new_p, new_l) = self.doc.add_page(Mm(A4_WIDTH_MM), Mm(A4_HEIGHT_MM), "Layer 1");
+                        pages.push((new_p, new_l));
+                        current_page_idx += 1;
+                        current_y = A4_HEIGHT_MM - top_margin - 10.0;
+                    }
+
+                    let quote_top = current_y + 1.0;
+                    let layer = self.doc.get_page(pages[current_page_idx].0).get_layer(pages[current_page_idx].1);
+
+                    for line in &lines {
+                        render_styled_line(
+                            &layer,
+                            line,
+                            content_x,
+                            current_y,
+                            font_size,
+                            &self.font_helvetica_oblique,
+                            &self.font_helvetica_bold_oblique,
+                            &self.font_helvetica_oblique,
+                            &self.font_helvetica_bold_oblique,
+                            &self.font_courier,
+                            &self.font_courier_bold,
+                        );
+                        current_y -= line_h;
+                    }
+
+                    let quote_bottom = current_y + 1.5;
+                    self.draw_vertical_bar(&layer, MARGIN_LEFT_MM + 2.0, quote_bottom, quote_top, 1.2, 0.6);
+                    current_y -= 2.5;
+                }
+                MdBlock::CodeBlock { lang, lines } => {
+                    let font_size = 8.5;
+                    let line_h = 3.8;
+                    current_y -= 2.0;
+
+                    let layer = self.doc.get_page(pages[current_page_idx].0).get_layer(pages[current_page_idx].1);
+                    if let Some(ref l) = lang {
+                        layer.use_text(&format!("[{}]", l), 7.5, Mm(MARGIN_LEFT_MM + 4.0), Mm(current_y), &self.font_helvetica_bold);
+                        current_y -= 3.2;
+                    }
+
+                    for line in lines {
+                        if current_y - line_h < bottom_margin {
+                            let (new_p, new_l) = self.doc.add_page(Mm(A4_WIDTH_MM), Mm(A4_HEIGHT_MM), "Layer 1");
+                            pages.push((new_p, new_l));
+                            current_page_idx += 1;
+                            current_y = A4_HEIGHT_MM - top_margin - 10.0;
+                        }
+
+                        let layer = self.doc.get_page(pages[current_page_idx].0).get_layer(pages[current_page_idx].1);
+                        layer.use_text(line, font_size, Mm(MARGIN_LEFT_MM + 4.0), Mm(current_y), &self.font_courier);
+                        current_y -= line_h;
+                    }
+                    current_y -= 3.0;
+                }
+                MdBlock::Rule => {
+                    if current_y - 6.0 < bottom_margin {
+                        let (new_p, new_l) = self.doc.add_page(Mm(A4_WIDTH_MM), Mm(A4_HEIGHT_MM), "Layer 1");
+                        pages.push((new_p, new_l));
+                        current_page_idx += 1;
+                        current_y = A4_HEIGHT_MM - top_margin - 10.0;
+                    }
+
+                    current_y -= 2.5;
+                    let layer = self.doc.get_page(pages[current_page_idx].0).get_layer(pages[current_page_idx].1);
+                    self.draw_rule(&layer, MARGIN_LEFT_MM, A4_WIDTH_MM - MARGIN_RIGHT_MM, current_y, 0.5, 0.75);
+                    current_y -= 3.5;
+                }
+            }
+        }
+
+        // Add headers and footers across all created pages
+        let total_pages = pages.len();
+        for (page_num, (p_idx, l_idx)) in pages.iter().enumerate() {
+            let layer = self.doc.get_page(*p_idx).get_layer(*l_idx);
+            if include_header {
+                self.add_header(&layer, filename, page_num + 1, total_pages)?;
+            }
+            if include_footer {
+                self.add_footer(&layer)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn draw_rule(&self, layer: &PdfLayerReference, x_start: f32, x_end: f32, y: f32, thickness: f32, gray: f32) {
+        let line = Line {
+            points: vec![
+                (Point::new(Mm(x_start), Mm(y)), false),
+                (Point::new(Mm(x_end), Mm(y)), false),
+            ],
+            is_closed: false,
+        };
+        layer.set_outline_color(Color::Rgb(Rgb::new(gray, gray, gray, None)));
+        layer.set_outline_thickness(thickness);
+        layer.add_line(line);
+    }
+
+    fn draw_vertical_bar(&self, layer: &PdfLayerReference, x: f32, y_bottom: f32, y_top: f32, thickness: f32, gray: f32) {
+        let line = Line {
+            points: vec![
+                (Point::new(Mm(x), Mm(y_bottom)), false),
+                (Point::new(Mm(x), Mm(y_top)), false),
+            ],
+            is_closed: false,
+        };
+        layer.set_outline_color(Color::Rgb(Rgb::new(gray, gray, gray, None)));
+        layer.set_outline_thickness(thickness);
+        layer.add_line(line);
+    }
+
     pub fn save(self, path: &Path) -> Result<()> {
         let file = std::fs::File::create(path)
             .map_err(|e| ConversionError::FileWrite {
@@ -301,6 +610,139 @@ fn wrap_line(line: &str, max_chars: usize) -> Vec<String> {
     }
 
     result
+}
+
+#[derive(Debug, Clone)]
+pub enum MdBlock {
+    Heading { level: u8, text: String },
+    Paragraph { spans: Vec<MdSpan> },
+    BulletItem { indent_level: usize, spans: Vec<MdSpan> },
+    OrderedItem { number: u64, indent_level: usize, spans: Vec<MdSpan> },
+    CodeBlock { lang: Option<String>, lines: Vec<String> },
+    BlockQuote { spans: Vec<MdSpan> },
+    Rule,
+}
+
+#[derive(Debug, Clone)]
+pub struct MdSpan {
+    pub text: String,
+    pub is_bold: bool,
+    pub is_italic: bool,
+    pub is_code: bool,
+}
+
+#[derive(Debug, Clone)]
+struct StyledWord {
+    text: String,
+    is_bold: bool,
+    is_italic: bool,
+    is_code: bool,
+    width_mm: f32,
+}
+
+fn wrap_spans(spans: &[MdSpan], max_width_mm: f32, font_size: f32) -> Vec<Vec<StyledWord>> {
+    let mut words = Vec::new();
+    let pt_to_mm = 0.3527778;
+
+    for span in spans {
+        for w in span.text.split_whitespace() {
+            let char_count = w.chars().count() as f32;
+            let width_mm = if span.is_code {
+                char_count * (font_size * 0.6 * pt_to_mm)
+            } else if span.is_bold {
+                char_count * (font_size * 0.55 * pt_to_mm)
+            } else {
+                char_count * (font_size * 0.52 * pt_to_mm)
+            };
+
+            words.push(StyledWord {
+                text: w.to_string(),
+                is_bold: span.is_bold,
+                is_italic: span.is_italic,
+                is_code: span.is_code,
+                width_mm,
+            });
+        }
+    }
+
+    let mut lines = Vec::new();
+    let mut current_line: Vec<StyledWord> = Vec::new();
+    let mut current_line_width: f32 = 0.0;
+
+    for word in words {
+        let space_w = if word.is_code {
+            font_size * 0.6 * pt_to_mm
+        } else {
+            font_size * 0.28 * pt_to_mm
+        };
+        let needed = if current_line.is_empty() {
+            word.width_mm
+        } else {
+            space_w + word.width_mm
+        };
+
+        if !current_line.is_empty() && current_line_width + needed > max_width_mm {
+            lines.push(std::mem::take(&mut current_line));
+            current_line_width = word.width_mm;
+            current_line.push(word);
+        } else {
+            current_line_width += needed;
+            current_line.push(word);
+        }
+    }
+
+    if !current_line.is_empty() {
+        lines.push(current_line);
+    }
+
+    lines
+}
+
+fn render_styled_line(
+    layer: &PdfLayerReference,
+    words: &[StyledWord],
+    x_start: f32,
+    y: f32,
+    font_size: f32,
+    font_helvetica: &IndirectFontRef,
+    font_helvetica_bold: &IndirectFontRef,
+    font_helvetica_oblique: &IndirectFontRef,
+    font_helvetica_bold_oblique: &IndirectFontRef,
+    font_courier: &IndirectFontRef,
+    font_courier_bold: &IndirectFontRef,
+) {
+    let pt_to_mm = 0.3527778;
+    let mut x = x_start;
+
+    for (i, word) in words.iter().enumerate() {
+        if i > 0 {
+            let space_w = if word.is_code {
+                font_size * 0.6 * pt_to_mm
+            } else {
+                font_size * 0.28 * pt_to_mm
+            };
+            x += space_w;
+        }
+
+        let font = if word.is_code {
+            if word.is_bold {
+                font_courier_bold
+            } else {
+                font_courier
+            }
+        } else if word.is_bold && word.is_italic {
+            font_helvetica_bold_oblique
+        } else if word.is_bold {
+            font_helvetica_bold
+        } else if word.is_italic {
+            font_helvetica_oblique
+        } else {
+            font_helvetica
+        };
+
+        layer.use_text(&word.text, font_size, Mm(x), Mm(y), font);
+        x += word.width_mm;
+    }
 }
 
 #[cfg(test)]

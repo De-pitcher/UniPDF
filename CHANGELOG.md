@@ -5,7 +5,24 @@ All notable changes to UniPDF will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-09-10
+
+### Phase 0.3.0 - Markdown Support
+**Status:** ✅ Completed  
+**Goal:** Convert Markdown to beautifully formatted, publication-ready PDF with zero external dependencies.
+
+#### Added
+- [x] CommonMark parsing engine integrated via `pulldown-cmark`
+- [x] Headings (H1 to H6) with hierarchy, bold Helvetica fonts, and H1 divider
+- [x] Rich text formatting: **bold**, *italic*, ***bold-italic***, and `inline code`
+- [x] Unordered bullet lists (`-`, `*`) with bullet points and indentation
+- [x] Ordered lists (`1.`, `2.`) with dynamic counters and indentation
+- [x] Monospace fenced code blocks with language tag headers
+- [x] Blockquotes with italic typography and vertical accent bars
+- [x] Horizontal rules (`---`) with vector dividers
+- [x] Word wrapping preserving word boundaries across mixed styles
+- [x] Dynamic page overflow handling with `Page X of Y` running headers and footers
+- [x] Unit and integration tests for markdown parsing and conversion
 
 ---
 

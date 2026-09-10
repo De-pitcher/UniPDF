@@ -60,3 +60,25 @@ fn test_convert_nonexistent_file() {
         .failure()
         .code(1);
 }
+
+#[test]
+fn test_convert_markdown_file() {
+    let mut cmd = Command::cargo_bin("unipdf").unwrap();
+    let input = "test_files/sample.md";
+    let output = "test_outputs/sample_md.pdf";
+
+    std::fs::create_dir_all("test_outputs").ok();
+
+    cmd.arg("convert")
+        .arg(input)
+        .arg("--output")
+        .arg(output)
+        .assert()
+        .success();
+
+    assert!(Path::new(output).exists());
+    let metadata = std::fs::metadata(output).unwrap();
+    assert!(metadata.len() > 0, "Generated Markdown PDF is empty");
+
+    std::fs::remove_file(output).ok();
+}

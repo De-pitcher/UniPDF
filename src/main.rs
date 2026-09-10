@@ -13,6 +13,7 @@ use std::path::PathBuf;
 enum FileType {
     Text,
     Image,
+    Markdown,
     Unknown,
 }
 
@@ -21,6 +22,7 @@ fn detect_file_type(path: &PathBuf) -> FileType {
         match ext.to_lowercase().as_str() {
             "txt" => FileType::Text,
             "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" => FileType::Image,
+            "md" | "markdown" => FileType::Markdown,
             _ => FileType::Unknown,
         }
     } else {
@@ -95,9 +97,10 @@ fn main() -> Result<()> {
             let result = match detect_file_type(&input) {
                 FileType::Text => converters::text::convert(&input, &output, !no_header, !no_footer),
                 FileType::Image => converters::image::convert(&input, &output),
+                FileType::Markdown => converters::markdown::convert(&input, &output, !no_header, !no_footer),
                 FileType::Unknown => {
                     eprintln!("❌ Error: Unsupported file type");
-                    eprintln!("💡 Supported: .txt, .png, .jpg, .jpeg, .gif, .bmp, .webp");
+                    eprintln!("💡 Supported: .txt, .png, .jpg, .jpeg, .gif, .bmp, .webp, .md, .markdown");
                     std::process::exit(1);
                 }
             };
