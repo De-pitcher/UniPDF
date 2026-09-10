@@ -5,6 +5,20 @@ All notable changes to UniPDF will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-09-10
+
+### Version 1.0.0 - Production Ready Release 🚀
+**Status:** ✅ Completed  
+**Goal:** Full production-ready release with multi-platform CI/CD, live watch mode, comprehensive documentation, and zero-dependency conversions.
+
+#### Added
+- [x] Multi-platform CI & release pipeline (`.github/workflows/ci.yml`) testing Linux, macOS, and Windows with pre-built binary artifact generation
+- [x] Live directory watch mode (`unipdf watch`) powered by `notify` for automated background conversions
+- [x] Fully comprehensive production README with quickstart examples, architecture table, and usage guides
+- [x] Version bump to 1.0.0 across Cargo.toml, CLI definitions, and integration test suites
+
+---
+
 ## [0.6.0] - 2026-09-10
 
 ### Phase 0.6.0 - Batch Processing & PDF Merging

@@ -1,13 +1,13 @@
 [package]
 name = "unipdf"
-version = "0.1.0-dev"
+version = "1.0.0"
 edition = "2021"
 rust-version = "1.75"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["UniPDF Contributors"]
 license = "MIT OR Apache-2.0"
 description = "A zero-dependency CLI tool that converts common file types to PDF"
-homepage = "https://github.com/yourusername/unipdf"
-repository = "https://github.com/yourusername/unipdf"
+homepage = "https://github.com/De-pitcher/UniPDF"
+repository = "https://github.com/De-pitcher/UniPDF"
 readme = "README.md"
 keywords = ["pdf", "converter", "cli", "document"]
 categories = ["command-line-utilities", "text-processing"]
@@ -47,6 +47,7 @@ rayon = "1.10"
 indicatif = "0.17"
 glob = "0.3"
 lopdf = "0.31"
+notify = "6.1"
 
 [dev-dependencies]
 tempfile = "3.10"

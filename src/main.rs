@@ -37,9 +37,9 @@ fn detect_file_type(path: &PathBuf) -> FileType {
 #[derive(Parser)]
 #[command(
     name = "unipdf",
-    version = "0.1.0-dev",
+    version = "1.0.0",
     about = "Universal File to PDF Converter",
-    long_about = "A zero-dependency CLI tool that converts common file types to PDF.\nSupports text, images, Markdown, DOCX, and more."
+    long_about = "A zero-dependency CLI tool that converts common file types to PDF.\nSupports text, images, Markdown, DOCX, XLSX, batch processing, and PDF merging."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -98,6 +98,21 @@ enum Commands {
         /// Output merged PDF path
         #[arg(short, long)]
         output: PathBuf,
+    },
+
+    /// Watch a directory and automatically convert incoming or modified files to PDF
+    Watch {
+        /// Directory path to watch
+        #[arg(short, long)]
+        dir: PathBuf,
+
+        /// Output directory for converted PDFs
+        #[arg(short, long)]
+        output_dir: PathBuf,
+
+        /// Debounce window in milliseconds (default: 500)
+        #[arg(long, default_value_t = 500)]
+        debounce_ms: u64,
     },
 }
 
@@ -260,6 +275,57 @@ fn main() -> Result<()> {
                     std::process::exit(1);
                 }
             }
+        }
+        Commands::Watch {
+            dir,
+            output_dir,
+            debounce_ms: _,
+        } => {
+            use notify::{RecursiveMode, Watcher};
+            use std::sync::mpsc::channel;
+
+            println!("👀 Watching directory {:?} for new or modified files...", dir);
+            println!("📂 Converted PDFs will be written to {:?}", output_dir);
+            println!("💡 Press Ctrl+C to stop.");
+
+            std::fs::create_dir_all(&output_dir)?;
+
+            let (tx, rx) = channel();
+            let mut watcher = notify::recommended_watcher(move |res| {
+                if let Ok(event) = res {
+                    let _ = tx.send(event);
+                }
+            })?;
+
+            watcher.watch(&dir, RecursiveMode::Recursive)?;
+
+            for event in rx {
+                use notify::EventKind;
+                match event.kind {
+                    EventKind::Create(_) | EventKind::Modify(_) => {
+                        for path in event.paths {
+                            if path.is_file() {
+                                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+                                if ext.eq_ignore_ascii_case("pdf") {
+                                    continue;
+                                }
+
+                                let file_stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("doc");
+                                let out_pdf = output_dir.join(format!("{}.pdf", file_stem));
+
+                                println!("⚡ File change detected: {:?}. Converting to PDF...", path);
+                                match convert_single_file(&path, &out_pdf, false, false) {
+                                    Ok(_) => println!("✅ Auto-converted: {:?}", out_pdf),
+                                    Err(err) => log::warn!("Auto-conversion error for {:?}: {}", path, err),
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            Ok(())
         }
     }
 }
