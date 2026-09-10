@@ -5,6 +5,23 @@ All notable changes to UniPDF will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-09-10
+
+### Phase 0.5.0 - Native XLSX Support & Fallback System
+**Status:** ✅ Completed  
+**Goal:** Convert Excel spreadsheets (`.xlsx`, `.xls`, `.ods`) to PDF natively with dynamic column scaling, multi-sheet rendering, and external LibreOffice detection.
+
+#### Added
+- [x] Fast, zero-dependency spreadsheet parser engine via `calamine`
+- [x] Multi-sheet extraction (`.xlsx`, `.xls`, `.ods`) with sheet titles and vector rule separators
+- [x] Dynamic proportional column width calculation according to cell content length
+- [x] Table cell multiline wrapping and automatic page splitting across large datasets
+- [x] Bold header row styling with horizontal borders and vertical cell dividing lines
+- [x] External host LibreOffice/soffice detection via `which` to notify users for complex legacy file fallbacks
+- [x] Unit and integration test coverage for simple and multi-sheet stress test spreadsheets
+
+---
+
 ## [0.4.0] - 2026-09-10
 
 ### Phase 0.4.0 - Native DOCX Support

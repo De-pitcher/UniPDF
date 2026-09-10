@@ -15,6 +15,7 @@ enum FileType {
     Image,
     Markdown,
     Docx,
+    Spreadsheet,
     Unknown,
 }
 
@@ -25,6 +26,7 @@ fn detect_file_type(path: &PathBuf) -> FileType {
             "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" => FileType::Image,
             "md" | "markdown" => FileType::Markdown,
             "docx" => FileType::Docx,
+            "xlsx" | "xls" | "ods" => FileType::Spreadsheet,
             _ => FileType::Unknown,
         }
     } else {
@@ -101,9 +103,13 @@ fn main() -> Result<()> {
                 FileType::Image => converters::image::convert(&input, &output),
                 FileType::Markdown => converters::markdown::convert(&input, &output, !no_header, !no_footer),
                 FileType::Docx => converters::docx::convert(&input, &output, !no_header, !no_footer),
+                FileType::Spreadsheet => converters::xlsx::convert(&input, &output, !no_header, !no_footer),
                 FileType::Unknown => {
                     eprintln!("❌ Error: Unsupported file type");
-                    eprintln!("💡 Supported: .txt, .png, .jpg, .jpeg, .gif, .bmp, .webp, .md, .markdown, .docx");
+                    eprintln!("💡 Supported: .txt, .png, .jpg, .jpeg, .gif, .bmp, .webp, .md, .markdown, .docx, .xlsx, .xls, .ods");
+                    if which::which("soffice").is_ok() || which::which("libreoffice").is_ok() {
+                        eprintln!("💡 LibreOffice detected on host. Complex legacy files (.doc, .ppt) can be converted with LibreOffice.");
+                    }
                     std::process::exit(1);
                 }
             };

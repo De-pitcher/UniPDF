@@ -39,8 +39,8 @@ pulldown-cmark = "0.11"
 docx-rs = { version = "0.4.22", default-features = false }
 
 # Phase 0.5.0+ dependencies
-# calamine = "0.25"
-# which = "6.0"
+calamine = "0.26"
+which = "6.0"
 
 # Phase 0.6.0+ dependencies
 # rayon = "1.10"

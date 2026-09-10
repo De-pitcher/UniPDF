@@ -144,3 +144,56 @@ fn test_convert_complex_docx_stress() {
     std::fs::remove_file(output).ok();
 }
 
+#[test]
+fn test_convert_xlsx_file() {
+    let input = "test_files/sample.xlsx";
+    let output = "test_outputs/sample_xlsx_test.pdf";
+
+    std::fs::create_dir_all("test_files").ok();
+    std::fs::create_dir_all("test_outputs").ok();
+
+    let mut cmd = Command::cargo_bin("unipdf").unwrap();
+    cmd.arg("convert")
+        .arg(input)
+        .arg("--output")
+        .arg(output)
+        .assert()
+        .success();
+
+    assert!(Path::new(output).exists());
+    let metadata = std::fs::metadata(output).unwrap();
+    assert!(metadata.len() > 0, "Generated XLSX PDF is empty");
+
+    let bytes = std::fs::read(output).unwrap();
+    assert!(bytes.starts_with(b"%PDF-"), "Output is not a valid PDF file");
+
+    std::fs::remove_file(output).ok();
+}
+
+#[test]
+fn test_convert_complex_xlsx_stress() {
+    let input = "test_files/complex_stress_test.xlsx";
+    let output = "test_outputs/complex_stress_xlsx_test.pdf";
+
+    std::fs::create_dir_all("test_files").ok();
+    std::fs::create_dir_all("test_outputs").ok();
+
+    let mut cmd = Command::cargo_bin("unipdf").unwrap();
+    cmd.arg("convert")
+        .arg(input)
+        .arg("--output")
+        .arg(output)
+        .assert()
+        .success();
+
+    assert!(Path::new(output).exists());
+    let metadata = std::fs::metadata(output).unwrap();
+    assert!(metadata.len() > 1000, "Generated complex XLSX PDF is too small");
+
+    let bytes = std::fs::read(output).unwrap();
+    assert!(bytes.starts_with(b"%PDF-"), "Output is not a valid PDF file");
+
+    std::fs::remove_file(output).ok();
+}
+
+
